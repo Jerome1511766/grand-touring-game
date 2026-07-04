@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grand Touring - Play Now</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #000;
+            overflow: hidden;
+            color: #fff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .loading {
+            text-align: center;
+        }
+
+        .spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid #333;
+            border-top-color: #00ff00;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        h1 {
+            font-size: 2rem;
+            margin-bottom: 10px;
+            color: #00ff00;
+        }
+
+        p {
+            font-size: 1.1rem;
+            color: #ccc;
+            margin-bottom: 30px;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        #hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 2px solid #00ff00;
+            padding: 20px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            z-index: 100;
+            min-width: 250px;
+        }
+
+        #hud div {
+            margin: 8px 0;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        #hud span {
+            color: #00ff00;
+            font-size: 18px;
+        }
+
+        #speed-bar {
+            width: 150px;
+            height: 10px;
+            background: #333;
+            border: 1px solid #00ff00;
+            margin-top: 5px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #speed-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00ff00, #ffff00, #ff6600);
+            width: 0%;
+            transition: width 0.05s;
+        }
+
+        #minimap {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 180px;
+            height: 180px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid #00ff00;
+            border-radius: 10px;
+            z-index: 100;
+        }
+
+        #minimap-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        #controls {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid #00ff00;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            z-index: 100;
+        }
+
+        .control-group {
+            margin: 10px 0;
+        }
+
+        button {
+            background: #00ff00;
+            color: #000;
+            border: none;
+            padding: 12px 24px;
+            margin: 5px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.2s;
+            touch-action: manipulation;
+        }
+
+        button:hover {
+            background: #00dd00;
+            transform: scale(1.05);
+        }
+
+        button:active {
+            background: #00aa00;
+            transform: scale(0.95);
+        }
+
+        #gameOver {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.95);
+            border: 3px solid #ff6600;
+            padding: 40px;
+            border-radius: 15px;
+            text-align: center;
+            z-index: 200;
+            display: none;
+            min-width: 400px;
+        }
+
+        #gameOver h1 {
+            font-size: 48px;
+            margin-bottom: 20px;
+            color: #ff6600;
+        }
+
+        #gameOver p {
+            font-size: 24px;
+            margin: 15px 0;
+        }
+
+        #checkpoint-indicator {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 48px;
+            color: #00ff00;
+            text-shadow: 0 0 20px #00ff00;
+            font-weight: bold;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        #checkpoint-indicator.show {
+            opacity: 1;
+        }
+
+        @media (max-width: 768px) {
+            #hud {
+                top: 10px;
+                left: 10px;
+                font-size: 12px;
+                padding: 10px;
+                min-width: 180px;
+            }
+
+            #minimap {
+                width: 120px;
+                height: 120px;
+                top: 10px;
+                right: 10px;
+            }
+
+            #controls {
+                bottom: 20px;
+                padding: 15px;
+            }
+
+            button {
+                padding: 8px 16px;
+                font-size: 12px;
+                margin: 2px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div id="hud">
+    <div>Speed: <span id="speed">0</span> km/h</div>
+    <div id="speed-bar"><div id="speed-bar-fill"></div></div>
+    <div>Credits: <span id="credits">0</span></div>
+    <div>Checkpoint: <span id="checkpoint">0</span>/10</div>
+    <div>Weather: <span id="weather">Clear</span></div>
+    <div>Laps: <span id="laps">0</span></div>
+</div>
+
+<div id="minimap">
+    <canvas id="minimap-canvas"></canvas>
+</div>
+
+<div id="controls">
+    <div class="control-group">
+        <button id="gasBtn" onmousedown="input.gasActive=true" onmouseup="input.gasActive=false" ontouchstart="input.gasActive=true;return false" ontouchend="input.gasActive=false;return false">⬆️ GAS</button>
+        <button id="brakeBtn" onmousedown="input.brakeActive=true" onmouseup="input.brakeActive=false" ontouchstart="input.brakeActive=true;return false" ontouchend="input.brakeActive=false;return false">⬇️ BRAKE</button>
+    </div>
+    <div class="control-group">
+        <button id="leftBtn" onmousedown="input.dir=-1" onmouseup="input.dir=0" ontouchstart="input.dir=-1;return false" ontouchend="input.dir=0;return false">⬅️ LEFT</button>
+        <button id="rightBtn" onmousedown="input.dir=1" onmouseup="input.dir=0" ontouchstart="input.dir=1;return false" ontouchend="input.dir=0;return false">RIGHT ➡️</button>
+    </div>
+    <div class="control-group">
+        <button onclick="toggleSpeed()">⚡ Boost</button>
+        <button onclick="resetGame()">🔄 Reset</button>
+    </div>
+</div>
+
+<div id="checkpoint-indicator"></div>
+
+<div id="gameOver">
+    <h1>RACE FINISHED! 🏁</h1>
+    <p id="finalStats"></p>
+    <button onclick="location.reload()">Play Again</button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script src="game.js"></script>
+
+</body>
+</html>
