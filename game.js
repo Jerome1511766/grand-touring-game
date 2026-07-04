@@ -1,29 +1,39 @@
 /* =========================
-   GRAND TOURING - RACING GAME
-   Built with Three.js
+   GRAND TOURING - RACING GAME (MOBILE OPTIMIZED)
+   Built with Three.js - 30 FPS Mobile Version
 ========================= */
 
 class Game {
   constructor() {
+    // Detect device
+    this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    this.targetFPS = this.isMobile ? 30 : 60;
+    this.frameInterval = 1000 / this.targetFPS;
+    this.lastFrameTime = 0;
+
+    // Reduce quality on mobile
+    const quality = this.isMobile ? 0.5 : 1;
+
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 2000);
     
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    this.renderer = new THREE.WebGLRenderer({ antialias: this.isMobile ? false : true, alpha: true, precision: 'lowp' });
     this.renderer.setSize(innerWidth, innerHeight);
-    this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFShadowShadowMap;
+    this.renderer.setPixelRatio(this.isMobile ? 0.75 : 1);
+    this.renderer.shadowMap.enabled = !this.isMobile; // Disable shadows on mobile
+    this.renderer.shadowMap.type = THREE.BasicShadowMap;
     document.body.appendChild(this.renderer.domElement);
 
     // Lighting
     this.setupLights();
 
     // World
-    this.world = new World(this.scene);
+    this.world = new World(this.scene, this.isMobile);
     this.car = new Car(this.scene);
-    this.traffic = new Traffic(this.scene);
+    this.traffic = new Traffic(this.scene, this.isMobile);
     this.checkpoints = new Checkpoints(this.scene);
     this.weather = new Weather(this.scene);
-    this.particles = new Particles(this.scene);
+    this.particles = new Particles(this.scene, this.isMobile);
 
     this.camera.position.set(0, 6, 10);
 
@@ -31,29 +41,113 @@ class Game {
     this.gameOver = false;
     this.startTime = Date.now();
     this.checkpointTimes = [];
+    this.updateCounter = 0;
+
+    // Touch controls
+    this.setupTouchControls();
 
     window.addEventListener('resize', () => this.onWindowResize());
     window.addEventListener('keydown', (e) => this.handleKeyDown(e));
     window.addEventListener('keyup', (e) => this.handleKeyUp(e));
 
+    // Show device info
+    if (this.isMobile) {
+      console.log(`📱 Mobile device detected - Running at ${this.targetFPS} FPS`);
+    }
+
     this.loop();
   }
 
+  setupTouchControls() {
+    if (!this.isMobile) return;
+
+    const canvas = this.renderer.domElement;
+
+    // Accelerometer for steering (optional)
+    if (window.DeviceOrientationEvent) {
+      window.addEventListener('deviceorientation', (event) => {
+        const gamma = event.gamma; // -90 to 90
+        const normalizedGamma = gamma / 45; // -2 to 2
+        input.dir = Math.max(-1, Math.min(1, normalizedGamma)); // Clamp to -1 to 1
+      });
+    }
+
+    // Touch buttons
+    const gasBtn = document.getElementById('gasBtn');
+    const brakeBtn = document.getElementById('brakeBtn');
+    const leftBtn = document.getElementById('leftBtn');
+    const rightBtn = document.getElementById('rightBtn');
+
+    // Gas
+    if (gasBtn) {
+      gasBtn.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        input.gasActive = true;
+      });
+      gasBtn.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        input.gasActive = false;
+      });
+      gasBtn.addEventListener('mousedown', () => input.gasActive = true);
+      gasBtn.addEventListener('mouseup', () => input.gasActive = false);
+    }
+
+    // Brake
+    if (brakeBtn) {
+      brakeBtn.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        input.brakeActive = true;
+      });
+      brakeBtn.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        input.brakeActive = false;
+      });
+      brakeBtn.addEventListener('mousedown', () => input.brakeActive = true);
+      brakeBtn.addEventListener('mouseup', () => input.brakeActive = false);
+    }
+
+    // Left
+    if (leftBtn) {
+      leftBtn.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        input.dir = -1;
+      });
+      leftBtn.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        input.dir = 0;
+      });
+    }
+
+    // Right
+    if (rightBtn) {
+      rightBtn.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        input.dir = 1;
+      });
+      rightBtn.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        input.dir = 0;
+      });
+    }
+  }
+
   setupLights() {
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+    const ambientLight = new THREE.AmbientLight(0xffffff, this.isMobile ? 0.6 : 0.4);
     this.scene.add(ambientLight);
 
-    this.sun = new THREE.DirectionalLight(0xffffff, 1.2);
-    this.sun.position.set(100, 150, 50);
-    this.sun.castShadow = true;
-    this.sun.shadow.mapSize.width = 2048;
-    this.sun.shadow.mapSize.height = 2048;
-    this.sun.shadow.camera.far = 500;
-    this.sun.shadow.camera.left = -300;
-    this.sun.shadow.camera.right = 300;
-    this.sun.shadow.camera.top = 300;
-    this.sun.shadow.camera.bottom = -300;
-    this.scene.add(this.sun);
+    if (!this.isMobile) {
+      this.sun = new THREE.DirectionalLight(0xffffff, 1.2);
+      this.sun.position.set(100, 150, 50);
+      this.sun.castShadow = true;
+      this.sun.shadow.mapSize.width = 1024;
+      this.sun.shadow.mapSize.height = 1024;
+      this.sun.shadow.camera.far = 500;
+      this.sun.shadow.camera.left = -300;
+      this.sun.shadow.camera.right = 300;
+      this.sun.shadow.camera.top = 300;
+      this.sun.shadow.camera.bottom = -300;
+      this.scene.add(this.sun);
+    }
 
     this.scene.fog = new THREE.FogExp2(0x87CEEB, 0.002);
   }
@@ -61,36 +155,57 @@ class Game {
   loop() {
     requestAnimationFrame(() => this.loop());
 
+    const now = Date.now();
+    const deltaTime = now - this.lastFrameTime;
+
+    // Frame rate limiting for mobile
+    if (deltaTime < this.frameInterval) {
+      return;
+    }
+
+    this.lastFrameTime = now - (deltaTime % this.frameInterval);
+
     if (!this.gameOver) {
       this.car.update(this.weather);
       this.traffic.update(this.car);
       this.checkpoints.update(this.car);
-      this.weather.update(this.scene, this.car);
-      this.particles.update();
+      
+      // Update weather less frequently on mobile
+      this.updateCounter++;
+      if (this.updateCounter % 2 === 0) {
+        this.weather.update(this.scene, this.car);
+      }
 
-      // Collision detection
+      this.particles.update();
       this.checkCollisions();
     }
 
     // Camera follow car
     this.updateCamera();
 
-    // UI Update
-    UI.update(this.car, this.checkpoints, this.weather);
-    this.updateMiniMap();
+    // UI Update less frequently on mobile
+    if (this.updateCounter % 2 === 0) {
+      UI.update(this.car, this.checkpoints, this.weather);
+      this.updateMiniMap();
+    }
 
     this.renderer.render(this.scene, this.camera);
   }
 
   checkCollisions() {
-    // Car to traffic
-    this.traffic.cars.forEach(trafficCar => {
+    // Simplified collision detection for mobile
+    for (let i = 0; i < this.traffic.cars.length; i++) {
+      const trafficCar = this.traffic.cars[i];
       const distance = this.car.mesh.position.distanceTo(trafficCar.position);
+      
       if (distance < 3) {
         this.car.speed *= 0.6;
-        this.particles.crash(this.car.mesh.position);
+        if (!this.isMobile) {
+          this.particles.crash(this.car.mesh.position);
+        }
+        break; // Only check one collision per frame
       }
-    });
+    }
   }
 
   updateCamera() {
@@ -106,27 +221,27 @@ class Game {
     const canvas = document.getElementById('minimap-canvas');
     if (!canvas) return;
 
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { alpha: false });
     const w = canvas.width;
     const h = canvas.height;
 
     ctx.fillStyle = '#1a1a1a';
     ctx.fillRect(0, 0, w, h);
 
-    // Scale
     const scale = 0.8;
 
     // Draw road
     ctx.fillStyle = '#444';
     ctx.fillRect(w / 2 - 60 * scale / 2, 0, 60 * scale, h);
 
-    // Draw checkpoints
+    // Draw checkpoints (simplified on mobile)
     ctx.fillStyle = '#ffff00';
-    this.checkpoints.list.forEach((cp, i) => {
+    for (let i = 0; i < this.checkpoints.list.length; i += this.isMobile ? 2 : 1) {
+      const cp = this.checkpoints.list[i];
       const x = w / 2 + (cp.x * scale) / 3;
       const y = h / 2 + (cp.z * scale) / 3;
       ctx.fillRect(x - 3, y - 3, 6, 6);
-    });
+    }
 
     // Draw car
     ctx.fillStyle = '#00ff00';
@@ -134,13 +249,15 @@ class Game {
     const carY = h / 2 + (this.car.mesh.position.z * scale) / 3;
     ctx.fillRect(carX - 4, carY - 4, 8, 8);
 
-    // Draw traffic
+    // Draw traffic (simplified)
     ctx.fillStyle = '#ff0000';
-    this.traffic.cars.forEach(tc => {
+    const trafficStep = this.isMobile ? 3 : 1;
+    for (let i = 0; i < this.traffic.cars.length; i += trafficStep) {
+      const tc = this.traffic.cars[i];
       const tcX = w / 2 + (tc.position.x * scale) / 3;
       const tcY = h / 2 + (tc.position.z * scale) / 3;
       ctx.fillRect(tcX - 2, tcY - 2, 4, 4);
-    });
+    }
   }
 
   onWindowResize() {
@@ -150,6 +267,8 @@ class Game {
   }
 
   handleKeyDown(e) {
+    if (this.isMobile) return;
+    
     switch (e.key.toLowerCase()) {
       case 'arrowup':
       case 'w':
@@ -171,6 +290,8 @@ class Game {
   }
 
   handleKeyUp(e) {
+    if (this.isMobile) return;
+    
     switch (e.key.toLowerCase()) {
       case 'arrowup':
       case 'w':
@@ -206,7 +327,7 @@ class Game {
    WORLD
 ========================= */
 class World {
-  constructor(scene) {
+  constructor(scene, isMobile) {
     // Ground
     const groundGeo = new THREE.PlaneGeometry(800, 1000);
     const groundMat = new THREE.MeshStandardMaterial({
@@ -216,7 +337,7 @@ class World {
     });
     const ground = new THREE.Mesh(groundGeo, groundMat);
     ground.rotation.x = -Math.PI / 2;
-    ground.receiveShadow = true;
+    if (!isMobile) ground.receiveShadow = true;
     scene.add(ground);
 
     // Road
@@ -228,12 +349,13 @@ class World {
     });
     const road = new THREE.Mesh(roadGeo, roadMat);
     road.rotation.x = -Math.PI / 2;
-    road.receiveShadow = true;
+    if (!isMobile) road.receiveShadow = true;
     road.position.z = 0;
     scene.add(road);
 
-    // Road lines
-    for (let i = 0; i < 15; i++) {
+    // Road lines (fewer on mobile)
+    const lineCount = isMobile ? 8 : 15;
+    for (let i = 0; i < lineCount; i++) {
       const lineGeo = new THREE.PlaneGeometry(120, 5);
       const lineMat = new THREE.MeshStandardMaterial({ color: 0xffff00 });
       const line = new THREE.Mesh(lineGeo, lineMat);
@@ -243,13 +365,14 @@ class World {
       scene.add(line);
     }
 
-    // Trees
-    for (let i = 0; i < 20; i++) {
-      const treeGeo = new THREE.CylinderGeometry(3, 3, 15, 8);
+    // Trees (fewer on mobile)
+    const treeCount = isMobile ? 10 : 20;
+    for (let i = 0; i < treeCount; i++) {
+      const treeGeo = new THREE.CylinderGeometry(3, 3, 15, isMobile ? 6 : 8);
       const treeMat = new THREE.MeshStandardMaterial({ color: 0x2d5016 });
       const tree = new THREE.Mesh(treeGeo, treeMat);
       tree.position.set(Math.random() * 300 - 150, 7.5, Math.random() * -800 - 100);
-      tree.castShadow = true;
+      if (!isMobile) tree.castShadow = true;
       scene.add(tree);
     }
   }
@@ -312,10 +435,11 @@ class Car {
    TRAFFIC AI
 ========================= */
 class Traffic {
-  constructor(scene) {
+  constructor(scene, isMobile) {
     this.cars = [];
+    const carCount = isMobile ? 8 : 15;
 
-    for (let i = 0; i < 15; i++) {
+    for (let i = 0; i < carCount; i++) {
       const carGeo = new THREE.BoxGeometry(2, 1, 4);
       const carMat = new THREE.MeshStandardMaterial({
         color: new THREE.Color().setHSL(Math.random(), 0.7, 0.6),
@@ -323,7 +447,7 @@ class Traffic {
       });
       const car = new THREE.Mesh(carGeo, carMat);
       car.position.set(Math.random() * 100 - 50, 0.5, Math.random() * -600);
-      car.castShadow = true;
+      if (!isMobile) car.castShadow = true;
       scene.add(car);
 
       this.cars.push({
@@ -336,16 +460,13 @@ class Traffic {
 
   update(playerCar) {
     this.cars.forEach(car => {
-      // Move forward
       car.mesh.position.z += car.speed;
 
-      // Reset if off screen
       if (car.mesh.position.z > 150) {
         car.mesh.position.z = -600;
         car.mesh.position.x = Math.random() * 100 - 50;
       }
 
-      // Simple AI - avoid player
       const dx = playerCar.mesh.position.x - car.mesh.position.x;
       if (Math.abs(dx) < 15 && Math.abs(playerCar.mesh.position.z - car.mesh.position.z) < 30) {
         car.mesh.position.x += Math.sign(dx) > 0 ? -0.3 : 0.3;
@@ -391,7 +512,6 @@ class Checkpoints {
       this.index++;
       UI.credits += 100;
 
-      // Checkpoint effect
       const indicator = document.getElementById('checkpoint-indicator');
       indicator.textContent = `CHECKPOINT ${this.index}! ✓`;
       indicator.classList.add('show');
@@ -419,7 +539,6 @@ class Weather {
       this.state = r < 0.6 ? 'Clear' : r < 0.85 ? 'Rain' : 'Night';
     }
 
-    // Adjust lighting & fog
     if (this.state === 'Night') {
       scene.background = new THREE.Color(0x0a0a1a);
       scene.fog = new THREE.FogExp2(0x0a0a1a, 0.005);
@@ -437,12 +556,15 @@ class Weather {
    PARTICLE EFFECTS
 ========================= */
 class Particles {
-  constructor(scene) {
+  constructor(scene, isMobile) {
     this.scene = scene;
     this.particles = [];
+    this.isMobile = isMobile;
   }
 
   crash(pos) {
+    if (this.isMobile) return; // Disable particles on mobile
+
     for (let i = 0; i < 10; i++) {
       const geo = new THREE.SphereGeometry(0.1, 4, 4);
       const mat = new THREE.MeshBasicMaterial({ color: 0xff6600 });
@@ -460,6 +582,8 @@ class Particles {
   }
 
   checkpoint(pos) {
+    if (this.isMobile) return; // Disable particles on mobile
+
     for (let i = 0; i < 15; i++) {
       const geo = new THREE.SphereGeometry(0.15, 4, 4);
       const mat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
@@ -480,7 +604,7 @@ class Particles {
     for (let i = this.particles.length - 1; i >= 0; i--) {
       const p = this.particles[i];
       p.position.add(p.velocity);
-      p.velocity.y -= 0.01; // Gravity
+      p.velocity.y -= 0.01;
       p.life -= 0.03;
       p.material.opacity = p.life;
 
@@ -539,7 +663,6 @@ const UI = {
     document.getElementById('weather').textContent = weather.state;
     document.getElementById('laps').textContent = Math.floor(checkpoints.index / 10);
 
-    // Speed bar
     const speedPercent = Math.min(100, (speed / 120) * 100);
     document.getElementById('speed-bar-fill').style.width = speedPercent + '%';
   }
@@ -570,4 +693,7 @@ function resetGame() {
    START GAME
 ========================= */
 const game = new Game();
-console.log('Grand Touring Game Started! 🏎️');
+console.log('🏎️ Grand Touring Game Started!');
+if (game.isMobile) {
+  console.log(`📱 Mobile Optimized - ${game.targetFPS} FPS`);
+}
